@@ -1,0 +1,12 @@
+{
+  "name": "job-radar",
+  "version": "1.0.0",
+  "description": "Job matching bot for Luke Grainger",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
