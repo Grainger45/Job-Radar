@@ -1,5 +1,5 @@
 // JobRadar - server.js
-// ENV VARS: REED_API_KEY, ANTHROPIC_API_KEY, SENDGRID_API_KEY, ALERT_EMAIL, FROM_EMAIL
+// ENV VARS: ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY, SENDGRID_API_KEY, ALERT_EMAIL, FROM_EMAIL
 
 const express = require('express');
 const https = require('https');
@@ -25,16 +25,11 @@ HARD REJECT if: outbound/cold calling sales, commission-only, door-to-door, shif
 function fetchUrl(url, options = {}) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json, text/html, application/rss+xml',
-        ...options.headers
-      },
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json', ...options.headers },
       ...options
     }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
         return fetchUrl(res.headers.location, options).then(resolve).catch(reject);
-      }
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => resolve(data));
@@ -46,30 +41,39 @@ function fetchUrl(url, options = {}) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Reed API
-async function scrapeReed() {
+// Adzuna API
+async function scrapeAdzuna() {
   const jobs = [];
-  const searches = ['IT support', 'service desk', 'technical support', 'customer success', 'IT coordinator', 'helpdesk'];
-  for (const keywords of searches) {
+  const searches = ['IT support', 'service desk', 'technical support', 'customer success', 'IT coordinator', 'helpdesk analyst'];
+  for (const q of searches) {
     try {
-      const params = new URLSearchParams({ keywords, locationName: 'Stoke-on-Trent', distancefromLocation: 10, minimumSalary: 26000, permanent: true, fullTime: true });
-      const auth = Buffer.from(`${process.env.REED_API_KEY}:`).toString('base64');
-      const data = await fetchUrl(`https://www.reed.co.uk/api/1.0/search?${params}`, { headers: { 'Authorization': `Basic ${auth}` } });
+      const params = new URLSearchParams({
+        app_id: process.env.ADZUNA_APP_ID,
+        app_key: process.env.ADZUNA_APP_KEY,
+        results_per_page: 20,
+        what: q,
+        where: 'Stoke-on-Trent',
+        distance: 10,
+        salary_min: 26000,
+        full_time: 1,
+        permanent: 1
+      });
+      const data = await fetchUrl(`https://api.adzuna.com/v1/api/jobs/gb/search/1?${params}`);
       const parsed = JSON.parse(data);
       for (const job of (parsed.results || [])) {
         jobs.push({
-          id: `reed-${job.jobId}`,
-          title: job.jobTitle,
-          company: job.employerName,
-          salary: job.minimumSalary ? `£${job.minimumSalary.toLocaleString()} - £${(job.maximumSalary||'?').toLocaleString()}` : 'Not specified',
-          location: job.locationName,
-          description: job.jobDescription || '',
-          url: job.jobUrl,
-          source: 'Reed'
+          id: `adzuna-${job.id}`,
+          title: job.title,
+          company: job.company?.display_name || 'Unknown',
+          salary: job.salary_min ? `£${Math.round(job.salary_min).toLocaleString()} - £${Math.round(job.salary_max || job.salary_min).toLocaleString()}` : 'Not specified',
+          location: job.location?.display_name || 'Unknown',
+          description: (job.description || '').slice(0, 400),
+          url: job.redirect_url,
+          source: 'Adzuna'
         });
       }
       await sleep(1000);
-    } catch (e) { console.error(`Reed error (${keywords}):`, e.message); }
+    } catch(e) { console.error(`Adzuna error (${q}):`, e.message); }
   }
   return jobs;
 }
@@ -77,7 +81,7 @@ async function scrapeReed() {
 // Indeed RSS
 async function scrapeIndeed() {
   const jobs = [];
-  const searches = ['IT+support', 'service+desk', 'technical+support', 'customer+success', 'helpdesk'];
+  const searches = ['IT+support', 'service+desk', 'technical+support', 'helpdesk'];
   for (const q of searches) {
     try {
       const xml = await fetchUrl(`https://uk.indeed.com/rss?q=${q}&l=Stoke-on-Trent&radius=10&fromage=7`);
@@ -85,16 +89,17 @@ async function scrapeIndeed() {
       for (const item of items) {
         const get = tag => { const m = item.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([^\\]]+)\\]\\]><\/${tag}>|<${tag}[^>]*>([^<]+)<\/${tag}>`)); return m ? (m[1]||m[2]||'').trim() : ''; };
         const link = get('link') || '';
+        if (!link) continue;
         jobs.push({
-          id: `indeed-${Buffer.from(link).toString('base64').slice(0,20)}`,
+          id: `indeed-${Buffer.from(link).toString('base64').slice(0, 20)}`,
           title: get('title'), company: get('source'),
           salary: 'See listing', location: 'Stoke-on-Trent area',
-          description: get('description').replace(/<[^>]+>/g,'').slice(0,300),
+          description: get('description').replace(/<[^>]+>/g, '').slice(0, 300),
           url: link, source: 'Indeed'
         });
       }
       await sleep(1500);
-    } catch (e) { console.error(`Indeed RSS error (${q}):`, e.message); }
+    } catch(e) { console.error(`Indeed RSS error (${q}):`, e.message); }
   }
   return jobs;
 }
@@ -107,26 +112,26 @@ async function scoreJob(job) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001', max_tokens: 150,
-        messages: [{ role: 'user', content: `Score this job for Luke. Return ONLY valid JSON: {"score":0-100,"verdict":"one sentence","hardReject":true/false}\n\nCV: ${CV}\nPREFS: ${PREFS}\n\nJOB: ${job.title} | ${job.company} | ${job.salary} | ${job.location}\nDESC: ${job.description.slice(0,400)}` }]
+        messages: [{ role: 'user', content: `Score this job for Luke. Return ONLY valid JSON: {"score":0-100,"verdict":"one sentence","hardReject":true/false}\n\nCV: ${CV}\nPREFS: ${PREFS}\n\nJOB: ${job.title} | ${job.company} | ${job.salary} | ${job.location}\nDESC: ${job.description}` }]
       })
     });
     const data = await res.json();
-    return JSON.parse((data.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim());
+    return JSON.parse((data.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
   } catch(e) { return { score: 0, verdict: 'Error scoring', hardReject: false }; }
 }
 
 // Email digest
 async function sendDigest(jobs) {
   if (!jobs.length) return;
-  const rows = jobs.map(j => `<tr><td style="padding:12px;border-bottom:1px solid #eee;"><strong>${j.title}</strong> — ${j.company}<br><span style="color:#2a7ae2;">💰 ${j.salary}</span> | 📍 ${j.location}<br><small style="color:#666;">${j.verdict}</small><br><span style="background:${j.score>=80?'#22c55e':'#f59e0b'};color:white;padding:2px 8px;border-radius:10px;font-size:12px;">${j.score}/100</span> <a href="${j.url}">Apply →</a> <small>[${j.source}]</small></td></tr>`).join('');
+  const rows = jobs.map(j => `<tr><td style="padding:12px;border-bottom:1px solid #eee;"><strong>${j.title}</strong> — ${j.company}<br><span style="color:#2a7ae2;">💰 ${j.salary}</span> | 📍 ${j.location}<br><small style="color:#666;">${j.verdict}</small><br><span style="background:${j.score >= 80 ? '#22c55e' : '#f59e0b'};color:white;padding:2px 8px;border-radius:10px;font-size:12px;">${j.score}/100</span> <a href="${j.url}">Apply →</a> <small>[${j.source}]</small></td></tr>`).join('');
   await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}` },
     body: JSON.stringify({
       personalizations: [{ to: [{ email: process.env.ALERT_EMAIL }] }],
       from: { email: process.env.FROM_EMAIL || process.env.ALERT_EMAIL, name: 'JobRadar' },
-      subject: `🎯 JobRadar: ${jobs.length} new match${jobs.length>1?'es':''} — ${new Date().toLocaleDateString('en-GB')}`,
-      content: [{ type: 'text/html', value: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;"><h2>🎯 ${jobs.length} new job match${jobs.length>1?'es':''}</h2><table style="width:100%;border-collapse:collapse;">${rows}</table></div>` }]
+      subject: `🎯 JobRadar: ${jobs.length} new match${jobs.length > 1 ? 'es' : ''} — ${new Date().toLocaleDateString('en-GB')}`,
+      content: [{ type: 'text/html', value: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;"><h2>🎯 ${jobs.length} new job match${jobs.length > 1 ? 'es' : ''}</h2><table style="width:100%;border-collapse:collapse;">${rows}</table></div>` }]
     })
   });
   console.log(`Email sent: ${jobs.length} jobs`);
@@ -136,7 +141,7 @@ async function sendDigest(jobs) {
 async function runScan() {
   console.log(`[${new Date().toISOString()}] Scanning...`);
   let all = [];
-  try { all = all.concat(await scrapeReed()); } catch(e) { console.error('Reed failed:', e.message); }
+  try { all = all.concat(await scrapeAdzuna()); } catch(e) { console.error('Adzuna failed:', e.message); }
   try { all = all.concat(await scrapeIndeed()); } catch(e) { console.error('Indeed failed:', e.message); }
   const fresh = all.filter(j => !seenJobs.has(j.id));
   console.log(`${all.length} found, ${fresh.length} new`);
@@ -145,7 +150,7 @@ async function runScan() {
   for (const job of fresh) {
     const result = await scoreJob(job);
     seenJobs.add(job.id);
-    console.log(`  ${job.title} | ${result.score} | ${result.hardReject?'REJECT':'OK'}`);
+    console.log(`  ${job.title} | ${result.score} | ${result.hardReject ? 'REJECT' : 'OK'}`);
     if (!result.hardReject && result.score >= 65) scored.push({ ...job, ...result });
     await sleep(300);
   }
@@ -161,7 +166,7 @@ function schedule() {
   if (next <= now) next.setDate(next.getDate() + 1);
   const ms = next - now;
   setTimeout(() => { runScan(); setInterval(runScan, 86400000); }, ms);
-  console.log(`Next scan in ${Math.round(ms/60000)} mins`);
+  console.log(`Next scan in ${Math.round(ms / 60000)} mins`);
 }
 
 app.get('/', (_, res) => res.send(`<h2>JobRadar</h2><p>Seen: ${seenJobs.size} jobs</p><a href="/scan">Manual scan</a> | <a href="/reset">Reset</a>`));
