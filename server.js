@@ -1,4 +1,4 @@
-// JobRadar - server.js v5
+// JobRadar - server.js v5.1
 // ENV VARS: ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY, SENDGRID_API_KEY, ALERT_EMAIL, FROM_EMAIL
 
 const express = require('express');
@@ -140,7 +140,7 @@ async function scrapeAdzuna() {
             source: 'Adzuna'
           });
         }
-        await sleep(800);
+        await sleep(300);
       } catch(e) { console.error(`Adzuna error (${q} / ${loc.where}):`, e.message); }
     }
   }
@@ -179,7 +179,7 @@ async function scrapeIndeed() {
             source: 'Indeed'
           });
         }
-        await sleep(1200);
+        await sleep(500);
       } catch(e) { console.error(`Indeed RSS error (${q} / ${loc}):`, e.message); }
     }
   }
@@ -269,7 +269,7 @@ async function sendDigest(jobs) {
       <h2 style="color:#111;">🎯 JobRadar — ${jobs.length} new match${jobs.length > 1 ? 'es' : ''} today</h2>
       <p style="color:#555;font-size:13px;">Scored 60+ · Stoke-on-Trent +10mi + Remote · £24k+</p>
       <table style="width:100%;border-collapse:collapse;">${rows}</table>
-      <p style="color:#aaa;font-size:11px;margin-top:20px;">JobRadar v5</p>
+      <p style="color:#aaa;font-size:11px;margin-top:20px;">JobRadar v5.1</p>
     </div>`
   );
   console.log(`Email sent: ${jobs.length} jobs`);
@@ -325,9 +325,9 @@ function schedule() {
 }
 
 // ── Routes ─────────────────────────────────────────────────────
-app.get('/', (_, res) => res.send(`<h2>JobRadar v5</h2><p>Seen: ${seenJobs.size} jobs</p><a href="/scan">▶ Manual scan</a> | <a href="/reset">↺ Reset</a> | <a href="/ping">● Ping</a>`));
+app.get('/', (_, res) => res.send(`<h2>JobRadar v5.1</h2><p>Seen: ${seenJobs.size} jobs</p><a href="/scan">▶ Manual scan</a> | <a href="/reset">↺ Reset</a> | <a href="/ping">● Ping</a>`));
 app.get('/scan', (_, res) => { res.send('Scan started — check inbox in ~5 mins.'); runScan(); });
 app.get('/reset', (_, res) => { seenJobs.clear(); saveSeen(); res.send('Reset done.'); });
 app.get('/ping', (_, res) => res.send('pong'));
 
-app.listen(process.env.PORT || 3000, () => { console.log('JobRadar v5 running'); schedule(); });
+app.listen(process.env.PORT || 3000, () => { console.log('JobRadar v5.1 running'); schedule(); });
