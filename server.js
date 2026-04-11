@@ -1,4 +1,4 @@
-// JobRadar - server.js v4
+// JobRadar - server.js v5
 // ENV VARS: ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY, SENDGRID_API_KEY, ALERT_EMAIL, FROM_EMAIL
 
 const express = require('express');
@@ -12,6 +12,12 @@ let seenJobs = new Set();
 try { if (fs.existsSync(SEEN_FILE)) seenJobs = new Set(JSON.parse(fs.readFileSync(SEEN_FILE, 'utf8'))); } catch(e) {}
 const saveSeen = () => { try { fs.writeFileSync(SEEN_FILE, JSON.stringify([...seenJobs])); } catch(e) {} };
 
+// ── Blocked companies (training schemes posing as jobs) ───────
+const BLOCKED_COMPANIES = [
+  'itol', 'firebrand', 'just it', 'intequal', 'qa ltd', 'qa limited',
+  'estio', 'baltic apprenticeships', 'multiverse', 'corndel'
+];
+
 // ── Profile ───────────────────────────────────────────────────
 const CV = `Luke Grainger, Stoke-on-Trent. Current salary £26,000. Career changer moving into tech/SaaS roles.
 Experience:
@@ -22,36 +28,37 @@ Experience:
 Skills: Technical troubleshooting, CRM/database management, Excel, explaining complex tech simply, customer onboarding, relationship building, admin.
 No formal IT qualifications but strong practical tech aptitude. Career changer — enthusiasm and transferable skills are the pitch.`;
 
-const PREFS = `Luke is a career changer targeting entry/mid-level tech and tech-adjacent roles where transferable skills and enthusiasm are valued.
+const PREFS = `Luke is a career changer targeting entry/mid-level tech and tech-adjacent roles where transferable skills matter.
 
 TARGET ROLES: Customer Success, Service Desk, IT Support, Helpdesk, Technical Support, IT Coordinator, Support Analyst, Client Onboarding, Product Support, Account Coordinator, Technical Trainer, Customer Experience, Implementation Coordinator, Operations Coordinator.
 
-LOCATION: Stoke-on-Trent within 10 miles OR fully remote. Min salary £26,000. Weekdays only.
+LOCATION: Stoke-on-Trent within 10 miles OR fully remote. Min salary £24,000. Weekdays only.
 
-KEYWORD REWARDS — increase score if description contains any of:
+KEYWORD REWARDS — increase score if job description contains:
 "training provided", "full training", "no experience necessary", "career development", "progression", "study support", "hybrid", "remote", "entry level", "junior", "grow", "development programme"
 
-KEYWORD PENALTIES — decrease score if description contains any of:
+KEYWORD PENALTIES — decrease score if job description contains:
 "outbound", "cold calling", "KPI", "targets", "commission", "door to door", "field sales", "business development", "ITIL essential", "CCNA essential", "degree essential", "CompTIA essential", "team leader", "manager", "management experience", "3+ years", "5+ years"
 
 SCORING GUIDANCE:
 - Entry/junior roles with training: reward heavily
 - Roles matching Luke's Audi/Optical Express experience directly: reward
 - Roles needing formal IT certs as essential (not desirable): penalise
-- Management roles: penalise, Luke has no management experience
+- Management roles: penalise
 - Remote/hybrid: reward
 - 65-75 = good transferable fit, worth applying
-- 80+ = strong match, Luke should prioritise
+- 80+ = strong match, prioritise
 
 HARD REJECT (score 0, hardReject true) if ANY of:
 - Outbound sales or cold calling
 - Commission-only or heavily commission-based
 - Door-to-door or field sales
 - Shift/evening/weekend patterns required
-- Salary under £26,000
+- Salary under £24,000
 - Manual/physical labour
 - More than 10 miles from Stoke AND not remote
-- Salary above £80,000 (likely bad data)`;
+- Salary above £80,000 (bad data)
+- Trainee/graduate scheme run by a recruitment agency (not a real employer)`;
 
 // ── Fetch ─────────────────────────────────────────────────────
 function fetchUrl(url, options = {}) {
@@ -92,75 +99,89 @@ const SEARCHES = [
   'operations coordinator'
 ];
 
-// ── Adzuna ────────────────────────────────────────────────────
+// ── Adzuna — searches both Stoke and Remote ───────────────────
 async function scrapeAdzuna() {
   const jobs = [];
-  for (const q of SEARCHES) {
-    try {
-      const params = new URLSearchParams({
-        app_id: process.env.ADZUNA_APP_ID,
-        app_key: process.env.ADZUNA_APP_KEY,
-        results_per_page: 20,
-        what: q,
-        where: 'Stoke-on-Trent',
-        distance: 10,
-        salary_min: 26000,
-        full_time: 1,
-        permanent: 1
-      });
-      const data = await fetchUrl(`https://api.adzuna.com/v1/api/jobs/gb/search/1?${params}`);
-      const parsed = JSON.parse(data);
-      for (const job of (parsed.results || [])) {
-        const salMax = job.salary_max || job.salary_min || 0;
-        if (salMax > 80000) continue; // sanity check
-        jobs.push({
-          id: `adzuna-${job.id}`,
-          dedupKey: `${(job.company?.display_name || '').toLowerCase().trim()}|${job.title.toLowerCase().trim()}`,
-          title: job.title,
-          company: job.company?.display_name || 'Unknown',
-          salary: job.salary_min ? `£${Math.round(job.salary_min).toLocaleString()} - £${Math.round(salMax).toLocaleString()}` : 'Not specified',
-          location: job.location?.display_name || 'Unknown',
-          description: (job.description || ''),
-          url: job.redirect_url,
-          source: 'Adzuna'
+  const locations = [
+    { where: 'Stoke-on-Trent', distance: 10 },
+    { where: 'Remote', distance: 30 }
+  ];
+
+  for (const loc of locations) {
+    for (const q of SEARCHES) {
+      try {
+        const params = new URLSearchParams({
+          app_id: process.env.ADZUNA_APP_ID,
+          app_key: process.env.ADZUNA_APP_KEY,
+          results_per_page: 20,
+          what: q,
+          where: loc.where,
+          distance: loc.distance,
+          salary_min: 24000,
+          full_time: 1,
+          permanent: 1
         });
-      }
-      await sleep(800);
-    } catch(e) { console.error(`Adzuna error (${q}):`, e.message); }
+        const data = await fetchUrl(`https://api.adzuna.com/v1/api/jobs/gb/search/1?${params}`);
+        const parsed = JSON.parse(data);
+        for (const job of (parsed.results || [])) {
+          const salMax = job.salary_max || job.salary_min || 0;
+          if (salMax > 80000) continue;
+          const company = (job.company?.display_name || '').toLowerCase();
+          if (BLOCKED_COMPANIES.some(b => company.includes(b))) continue;
+          jobs.push({
+            id: `adzuna-${job.id}`,
+            dedupKey: `${company.trim()}|${job.title.toLowerCase().trim()}`,
+            title: job.title,
+            company: job.company?.display_name || 'Unknown',
+            salary: job.salary_min ? `£${Math.round(job.salary_min).toLocaleString()} - £${Math.round(salMax).toLocaleString()}` : 'Not specified',
+            location: job.location?.display_name || 'Unknown',
+            description: (job.description || ''),
+            url: job.redirect_url,
+            source: 'Adzuna'
+          });
+        }
+        await sleep(800);
+      } catch(e) { console.error(`Adzuna error (${q} / ${loc.where}):`, e.message); }
+    }
   }
   return jobs;
 }
 
-// ── Indeed RSS ────────────────────────────────────────────────
+// ── Indeed RSS — Stoke + Remote ───────────────────────────────
 async function scrapeIndeed() {
   const jobs = [];
-  for (const q of SEARCHES) {
-    try {
-      const encoded = q.replace(/ /g, '+');
-      const xml = await fetchUrl(`https://uk.indeed.com/rss?q=${encoded}&l=Stoke-on-Trent&radius=10&fromage=7`);
-      const items = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
-      for (const item of items) {
-        const get = tag => {
-          const m = item.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([^\\]]+)\\]\\]><\/${tag}>|<${tag}[^>]*>([^<]+)<\/${tag}>`));
-          return m ? (m[1] || m[2] || '').trim() : '';
-        };
-        const link = get('link') || '';
-        if (!link) continue;
-        const title = get('title');
-        const company = get('source');
-        jobs.push({
-          id: `indeed-${Buffer.from(link).toString('base64').slice(0, 20)}`,
-          dedupKey: `${company.toLowerCase().trim()}|${title.toLowerCase().trim()}`,
-          title, company,
-          salary: 'See listing',
-          location: 'Stoke-on-Trent area',
-          description: get('description').replace(/<[^>]+>/g, ''),
-          url: link,
-          source: 'Indeed'
-        });
-      }
-      await sleep(1200);
-    } catch(e) { console.error(`Indeed RSS error (${q}):`, e.message); }
+  const locations = ['Stoke-on-Trent', 'Remote'];
+
+  for (const loc of locations) {
+    for (const q of SEARCHES) {
+      try {
+        const encoded = q.replace(/ /g, '+');
+        const xml = await fetchUrl(`https://uk.indeed.com/rss?q=${encoded}&l=${loc}&radius=10&fromage=7`);
+        const items = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+        for (const item of items) {
+          const get = tag => {
+            const m = item.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([^\\]]+)\\]\\]><\/${tag}>|<${tag}[^>]*>([^<]+)<\/${tag}>`));
+            return m ? (m[1] || m[2] || '').trim() : '';
+          };
+          const link = get('link') || '';
+          if (!link) continue;
+          const title = get('title');
+          const company = get('source');
+          if (BLOCKED_COMPANIES.some(b => company.toLowerCase().includes(b))) continue;
+          jobs.push({
+            id: `indeed-${Buffer.from(link).toString('base64').slice(0, 20)}`,
+            dedupKey: `${company.toLowerCase().trim()}|${title.toLowerCase().trim()}`,
+            title, company,
+            salary: 'See listing',
+            location: loc === 'Remote' ? 'Remote' : 'Stoke-on-Trent area',
+            description: get('description').replace(/<[^>]+>/g, ''),
+            url: link,
+            source: 'Indeed'
+          });
+        }
+        await sleep(1200);
+      } catch(e) { console.error(`Indeed RSS error (${q} / ${loc}):`, e.message); }
+    }
   }
   return jobs;
 }
@@ -194,10 +215,9 @@ async function scoreJob(job) {
         max_tokens: 200,
         messages: [{
           role: 'user',
-          content: `Score this job for Luke. Return ONLY valid JSON: {"score":0-100,"verdict":"max 20 words, reference Luke's specific experience where relevant","hardReject":true/false}
+          content: `Score this job for Luke. Return ONLY valid JSON: {"score":0-100,"verdict":"max 20 words referencing Luke's specific experience","hardReject":true/false}
 
 CV: ${CV}
-
 PREFS: ${PREFS}
 
 JOB TITLE: ${job.title}
@@ -247,9 +267,9 @@ async function sendDigest(jobs) {
     `🎯 JobRadar: ${jobs.length} new match${jobs.length > 1 ? 'es' : ''} — ${new Date().toLocaleDateString('en-GB')}`,
     `<div style="font-family:sans-serif;max-width:620px;margin:0 auto;">
       <h2 style="color:#111;">🎯 JobRadar — ${jobs.length} new match${jobs.length > 1 ? 'es' : ''} today</h2>
-      <p style="color:#555;font-size:13px;">Scored 60+ from Adzuna & Indeed · Stoke-on-Trent +10mi + Remote · £26k+</p>
+      <p style="color:#555;font-size:13px;">Scored 60+ · Stoke-on-Trent +10mi + Remote · £24k+</p>
       <table style="width:100%;border-collapse:collapse;">${rows}</table>
-      <p style="color:#aaa;font-size:11px;margin-top:20px;">JobRadar v4</p>
+      <p style="color:#aaa;font-size:11px;margin-top:20px;">JobRadar v5</p>
     </div>`
   );
   console.log(`Email sent: ${jobs.length} jobs`);
@@ -270,7 +290,6 @@ async function runScan() {
   try { all = all.concat(await scrapeIndeed()); } catch(e) { errors.push(`Indeed: ${e.message}`); }
 
   if (all.length === 0 && errors.length > 0) {
-    console.error('All sources failed:', errors);
     await sendErrorAlert(errors.join('<br>'));
     return;
   }
@@ -306,9 +325,9 @@ function schedule() {
 }
 
 // ── Routes ─────────────────────────────────────────────────────
-app.get('/', (_, res) => res.send(`<h2>JobRadar v4</h2><p>Seen: ${seenJobs.size} jobs</p><a href="/scan">▶ Manual scan</a> | <a href="/reset">↺ Reset</a> | <a href="/ping">● Ping</a>`));
+app.get('/', (_, res) => res.send(`<h2>JobRadar v5</h2><p>Seen: ${seenJobs.size} jobs</p><a href="/scan">▶ Manual scan</a> | <a href="/reset">↺ Reset</a> | <a href="/ping">● Ping</a>`));
 app.get('/scan', (_, res) => { res.send('Scan started — check inbox in ~5 mins.'); runScan(); });
 app.get('/reset', (_, res) => { seenJobs.clear(); saveSeen(); res.send('Reset done.'); });
 app.get('/ping', (_, res) => res.send('pong'));
 
-app.listen(process.env.PORT || 3000, () => { console.log('JobRadar v4 running'); schedule(); });
+app.listen(process.env.PORT || 3000, () => { console.log('JobRadar v5 running'); schedule(); });
