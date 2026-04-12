@@ -1,4 +1,4 @@
-// JobRadar - server.js v8.1
+// JobRadar - server.js v8.2
 // ENV VARS: ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY, SENDGRID_API_KEY, ALERT_EMAIL, FROM_EMAIL, SUPABASE_URL, SUPABASE_KEY
 
 const express = require('express');
@@ -289,16 +289,18 @@ DESC: ${job.description.slice(0,1500)}` }]
 
 // ── Email ─────────────────────────────────────────────────────
 async function sendEmail(subject, html) {
-  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+  const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}` },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: process.env.ALERT_EMAIL }] }],
-      from: { email: process.env.FROM_EMAIL || process.env.ALERT_EMAIL, name: 'JobRadar' },
-      subject, content: [{ type: 'text/html', value: html }]
+      from: 'JobRadar <onboarding@resend.dev>',
+      to: [process.env.ALERT_EMAIL],
+      subject,
+      html
     })
   });
-  if (!res.ok) console.error('SendGrid error:', await res.text());
+  if (!res.ok) console.error('Resend error:', await res.text());
+  else console.log('Resend: email queued');
 }
 
 function labelStyle(label) {
@@ -370,7 +372,7 @@ async function sendDigest(jobs) {
       <p style="font-size:12px;color:#9ca3af;margin:0 0 4px;">JobRadar · ${new Date().toLocaleDateString('en-GB')} · Stoke +10mi + Remote · £24k+</p>
       <h1 style="font-size:22px;font-weight:700;color:#111;margin:0 0 20px;">${jobs.length} new job match${jobs.length>1?'es':''} today</h1>
       <table style="width:100%;border-collapse:collapse;">${cards}${legend}</table>
-      <p style="font-size:11px;color:#d1d5db;text-align:center;margin-top:16px;">JobRadar v8.1</p>
+      <p style="font-size:11px;color:#d1d5db;text-align:center;margin-top:16px;">JobRadar v8.2</p>
     </div>`
   );
   console.log(`Email sent: ${jobs.length} jobs`);
@@ -453,7 +455,7 @@ function schedule() {
 // ── Routes ─────────────────────────────────────────────────────
 app.get('/', (_, res) => res.send(`
   <div style="font-family:sans-serif;max-width:400px;margin:40px auto;padding:20px;">
-    <h2>JobRadar v8.1</h2>
+    <h2>JobRadar v8.2</h2>
     <p>Last scan: ${lastScanTime ? lastScanTime.toLocaleString('en-GB') : 'Never'}</p>
     <p>Last scan matches: ${lastScanCount}</p>
     <p>
@@ -493,7 +495,7 @@ app.get('/ping', (_, res) => res.send('pong'));
 // ── Start ──────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
-  console.log(`JobRadar v8.1 running on port ${PORT}`);
+  console.log(`JobRadar v8.2 running on port ${PORT}`);
   await initDB().catch(e => console.log('DB init note:', e.message));
   schedule();
 });
