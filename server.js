@@ -1,4 +1,4 @@
-// JobRadar - server.js v8
+// JobRadar - server.js v8.1
 // ENV VARS: ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY, SENDGRID_API_KEY, ALERT_EMAIL, FROM_EMAIL, SUPABASE_URL, SUPABASE_KEY
 
 const express = require('express');
@@ -370,7 +370,7 @@ async function sendDigest(jobs) {
       <p style="font-size:12px;color:#9ca3af;margin:0 0 4px;">JobRadar · ${new Date().toLocaleDateString('en-GB')} · Stoke +10mi + Remote · £24k+</p>
       <h1 style="font-size:22px;font-weight:700;color:#111;margin:0 0 20px;">${jobs.length} new job match${jobs.length>1?'es':''} today</h1>
       <table style="width:100%;border-collapse:collapse;">${cards}${legend}</table>
-      <p style="font-size:11px;color:#d1d5db;text-align:center;margin-top:16px;">JobRadar v8</p>
+      <p style="font-size:11px;color:#d1d5db;text-align:center;margin-top:16px;">JobRadar v8.1</p>
     </div>`
   );
   console.log(`Email sent: ${jobs.length} jobs`);
@@ -405,8 +405,20 @@ async function runScan() {
   // Sort fresh jobs — newer first
   fresh.sort((a, b) => (a.daysAgo ?? 99) - (b.daysAgo ?? 99));
 
+  // Pre-filter obvious rejects without calling Claude
+  const BAD_TITLES = ["mechanic", "cad technician", "welder", "plumber", "electrician", "hgv", "forklift", "chef", "cleaner", "security guard", "care assistant", "warehouse operative"];
+  const BAD_DESC = ["outbound calls", "cold calling", "door to door", "commission only", "zero hours contract"];
+  const toScore = fresh.filter(job => {
+    const title = job.title.toLowerCase();
+    const desc = (job.description || "").toLowerCase();
+    if (BAD_TITLES.some(t => title.includes(t))) { markJobSeen(job.id); memSeen.add(job.id); return false; }
+    if (BAD_DESC.some(t => desc.includes(t))) { markJobSeen(job.id); memSeen.add(job.id); return false; }
+    return true;
+  });
+  console.log(toScore.length + " to score after pre-filter");
+
   const scored = [];
-  for (const job of fresh) {
+  for (const job of toScore) {
     const result = await scoreJob(job);
     await markJobSeen(job.id);
     memSeen.add(job.id);
@@ -417,9 +429,15 @@ async function runScan() {
 
   lastScanTime = new Date();
   lastScanCount = scored.length;
+
+  if (!scored.length) { console.log('No matches this scan'); return; }
+
+  // Sort by score then send
   scored.sort((a, b) => b.score - a.score);
-  console.log(`${scored.length} jobs scored 60+`);
-  await sendDigest(scored);
+  console.log(`${scored.length} jobs scored 60+ — sending email`);
+
+  // Send in one batch but cap at 15 to keep email manageable
+  await sendDigest(scored.slice(0, 15));
 }
 
 // ── Cron 8am ──────────────────────────────────────────────────
@@ -435,7 +453,7 @@ function schedule() {
 // ── Routes ─────────────────────────────────────────────────────
 app.get('/', (_, res) => res.send(`
   <div style="font-family:sans-serif;max-width:400px;margin:40px auto;padding:20px;">
-    <h2>JobRadar v8</h2>
+    <h2>JobRadar v8.1</h2>
     <p>Last scan: ${lastScanTime ? lastScanTime.toLocaleString('en-GB') : 'Never'}</p>
     <p>Last scan matches: ${lastScanCount}</p>
     <p>
@@ -475,7 +493,7 @@ app.get('/ping', (_, res) => res.send('pong'));
 // ── Start ──────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
-  console.log(`JobRadar v8 running on port ${PORT}`);
+  console.log(`JobRadar v8.1 running on port ${PORT}`);
   await initDB().catch(e => console.log('DB init note:', e.message));
   schedule();
 });
