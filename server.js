@@ -1,4 +1,4 @@
- // JobRadar - server.js v8.3
+// JobRadar - server.js v8.3
 // ENV VARS: ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY, ALERT_EMAIL, SUPABASE_URL, SUPABASE_KEY
 
 const express = require('express');
@@ -86,7 +86,9 @@ const BAD_TITLES = [
 ];
 
 const BAD_DESC_PHRASES = [
-  'outbound calls', 'cold calling', 'door to door', 'commission only', 'zero hours contract'
+  'outbound calls', 'cold calling', 'door to door', 'commission only', 'zero hours contract',
+  'call centre', 'contact centre', 'inbound calls', 'telephone based', 'phone based',
+  'handling calls', 'taking calls', 'answering calls', 'call handling'
 ];
 
 // ── Profile ───────────────────────────────────────────────────
@@ -101,7 +103,7 @@ No formal IT qualifications but strong practical tech aptitude.`;
 
 const PREFS = `Luke is looking for roles with good job satisfaction, clear progression, positive culture, and work-life balance. Tech-adjacent roles ideal but any well-regarded role with development opportunities is worth considering.
 
-TARGET ROLES: Customer Success, Service Desk, IT Support, Helpdesk, Technical Support, IT Coordinator, Support Analyst, Client Onboarding, Product Support, Account Coordinator, Technical Trainer, Customer Experience, Implementation Coordinator, Operations Coordinator.
+TARGET ROLES (not exclusive): Customer Success Manager, Client Onboarding Specialist, Customer Relations Coordinator, Operations Coordinator, Operations Administrator, Account Coordinator, Training Coordinator, Customer Experience Coordinator, IT Support, Helpdesk, Technical Support, Service Desk, Support Analyst, Service Coordinator, Business Coordinator.
 
 LOCATION: Stoke-on-Trent within 10 miles OR fully remote UK. Min salary £24,000. Weekdays only.
 
@@ -109,7 +111,7 @@ SENIORITY: Luke is entry to mid-level. HEAVILY penalise Manager/Senior/Lead/Head
 
 KEYWORD REWARDS: "training provided", "full training", "no experience necessary", "career development", "progression", "study support", "hybrid", "remote", "entry level", "junior", "development programme", "flexible working", "supportive team"
 
-KEYWORD PENALTIES: "outbound", "cold calling", "KPI", "targets", "commission", "ITIL essential", "CCNA essential", "degree essential", "SQL essential", "SQL required", "programming required", "management experience required", "3+ years experience essential", "5+ years", "fast paced", "self starter"
+KEYWORD PENALTIES: "outbound", "cold calling", "telephone based", "call centre", "contact centre", "inbound calls", "KPI", "targets", "commission", "ITIL essential", "CCNA essential", "degree essential", "SQL essential", "SQL required", "programming required", "management experience required", "3+ years experience essential", "5+ years", "fast paced", "self starter"
 
 RECRUITER VS DIRECT: Slightly favour direct employer postings over recruitment agency postings.
 
@@ -152,12 +154,25 @@ function fetchUrl(url, options = {}) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const SEARCHES = [
-  'customer success', 'technical support', 'IT support',
-  'helpdesk', 'client onboarding', 'operations coordinator',
-  'customer experience', 'support analyst',
-  'account coordinator', 'customer relations',
-  'onboarding specialist', 'operations administrator',
-  'training coordinator'
+  // Customer facing & success (strongest match for Luke's background)
+  'customer success manager',
+  'customer relations coordinator',
+  'client onboarding specialist',
+  'customer experience coordinator',
+  'onboarding specialist',
+  // Operations & admin
+  'operations coordinator',
+  'operations administrator',
+  'account coordinator',
+  'training coordinator',
+  'business coordinator',
+  // Tech support (keep some IT but not dominant)
+  'technical support',
+  'IT support',
+  'helpdesk',
+  // Broader support
+  'support analyst',
+  'service coordinator'
 ];
 
 // ── Job helpers ───────────────────────────────────────────────
