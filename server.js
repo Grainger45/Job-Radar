@@ -154,7 +154,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const SEARCHES = [
   'customer success', 'technical support', 'IT support',
   'helpdesk', 'client onboarding', 'operations coordinator',
-  'customer experience', 'support analyst'
+  'customer experience', 'support analyst',
+  'account coordinator', 'customer relations',
+  'onboarding specialist', 'operations administrator',
+  'training coordinator'
 ];
 
 // ── Job helpers ───────────────────────────────────────────────
