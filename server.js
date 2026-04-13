@@ -1,4 +1,4 @@
-// JobRadar - server.js v8.3
+ // JobRadar - server.js v8.3
 // ENV VARS: ADZUNA_APP_ID, ADZUNA_APP_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY, ALERT_EMAIL, SUPABASE_URL, SUPABASE_KEY
 
 const express = require('express');
