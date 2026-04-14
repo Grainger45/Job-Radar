@@ -227,7 +227,7 @@ async function scrapeAdzuna() {
   for (const q of SEARCHES) {
     // Stoke
     try {
-      const params = new URLSearchParams({ app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY, results_per_page: 20, what: q, where: 'Stoke-on-Trent', distance: 10, salary_min: 24000, full_time: 1, permanent: 1 });
+      const params = new URLSearchParams({ app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY, results_per_page: 50, what: q, where: 'Stoke-on-Trent', distance: 10, salary_min: 24000, full_time: 1, permanent: 1 });
       const parsed = JSON.parse(await fetchUrl(`https://api.adzuna.com/v1/api/jobs/gb/search/1?${params}`));
       for (const job of (parsed.results || [])) {
         const salMax = job.salary_max || job.salary_min || 0;
@@ -257,7 +257,7 @@ async function scrapeAdzuna() {
 
     // Remote UK
     try {
-      const params = new URLSearchParams({ app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY, results_per_page: 20, what: `${q} remote`, salary_min: 24000, full_time: 1, permanent: 1 });
+      const params = new URLSearchParams({ app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY, results_per_page: 50, what: `${q} remote`, salary_min: 24000, full_time: 1, permanent: 1 });
       const parsed = JSON.parse(await fetchUrl(`https://api.adzuna.com/v1/api/jobs/gb/search/1?${params}`));
       for (const job of (parsed.results || [])) {
         const salMax = job.salary_max || job.salary_min || 0;
@@ -291,7 +291,7 @@ async function scrapeIndeed() {
   for (const q of SEARCHES) {
     for (const loc of [{ l: 'Stoke-on-Trent', label: 'Stoke-on-Trent area' }, { l: 'Remote', label: 'Remote (UK)' }]) {
       try {
-        const xml = await fetchUrl(`https://uk.indeed.com/rss?q=${q.replace(/ /g,'+')}&l=${loc.l}&radius=10&fromage=14`);
+        const xml = await fetchUrl(`https://uk.indeed.com/rss?q=${q.replace(/ /g,'+')}&l=${loc.l}&radius=10&fromage=21`);
         const items = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
         for (const item of items) {
           const get = tag => { const m = item.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([^\\]]+)\\]\\]><\/${tag}>|<${tag}[^>]*>([^<]+)<\/${tag}>`)); return m?(m[1]||m[2]||'').trim():''; };
