@@ -103,13 +103,17 @@ No formal IT qualifications but strong practical tech aptitude.`;
 
 const PREFS = `Luke is looking for roles with good job satisfaction, clear progression, positive culture, and work-life balance. Tech-adjacent roles ideal but any well-regarded role with development opportunities is worth considering.
 
-TARGET ROLES (not exclusive): Customer Success Manager, Client Onboarding Specialist, Customer Relations Coordinator, Operations Coordinator, Operations Administrator, Account Coordinator, Training Coordinator, Customer Experience Coordinator, IT Support, Helpdesk, Technical Support, Service Desk, Support Analyst, Service Coordinator, Business Coordinator.
+TARGET ROLES (in order of fit): Customer Success Manager, Client Success Manager, Product Specialist, Brand Specialist, Technology Specialist, Digital Adoption Specialist, Implementation Specialist, Solutions Consultant, Field Application Specialist, Clinical Product Specialist, Customer Onboarding Manager, Training Specialist, Technical Sales Specialist.
+
+CAREER PATH IMPORTANCE: Luke wants roles with genuine career progression. Reward roles that mention clear progression paths, promotion from within, career development, growing companies, or leadership opportunities. Penalise roles that appear to be dead-end admin positions with no stated progression.
+
+SECTOR PREFERENCE: SaaS/tech companies, automotive manufacturers/dealers, medical/health tech, diagnostic equipment companies. These sectors offer the best progression for Luke's background.
 
 LOCATION: Stoke-on-Trent within 10 miles OR fully remote UK. Min salary £24,000. Weekdays only.
 
 SENIORITY: Luke is entry to mid-level. HEAVILY penalise Manager/Senior/Lead/Head/Director titles if salary above £40k and no training language. These are Speculative at best.
 
-KEYWORD REWARDS: "training provided", "full training", "no experience necessary", "career development", "progression", "study support", "hybrid", "remote", "entry level", "junior", "development programme", "flexible working", "supportive team"
+KEYWORD REWARDS: "training provided", "full training", "no experience necessary", "career development", "progression", "promotion", "grow into", "leadership", "study support", "hybrid", "remote", "entry level", "junior", "development programme", "flexible working", "fast growing", "scale up", "expanding team", "promote from within"
 
 KEYWORD PENALTIES: "outbound", "cold calling", "telephone based", "call centre", "contact centre", "inbound calls", "KPI", "targets", "commission", "ITIL essential", "CCNA essential", "degree essential", "SQL essential", "SQL required", "programming required", "management experience required", "3+ years experience essential", "5+ years", "fast paced", "self starter"
 
@@ -154,25 +158,28 @@ function fetchUrl(url, options = {}) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const SEARCHES = [
-  // Customer facing & success (strongest match for Luke's background)
+  // SaaS & tech customer success (best long-term career path)
   'customer success manager',
-  'customer relations coordinator',
-  'client onboarding specialist',
-  'customer experience coordinator',
-  'onboarding specialist',
-  // Operations & admin
-  'operations coordinator',
-  'operations administrator',
-  'account coordinator',
-  'training coordinator',
-  'business coordinator',
-  // Tech support (keep some IT but not dominant)
-  'technical support',
-  'IT support',
-  'helpdesk',
-  // Broader support
-  'support analyst',
-  'service coordinator'
+  'client success manager',
+  'digital adoption specialist',
+  'implementation specialist',
+  'solutions consultant',
+  // Product & brand specialist (direct match to Audi/Arnold Clark background)
+  'product specialist',
+  'brand specialist',
+  'technology specialist',
+  'product demonstrator',
+  'technical sales specialist',
+  // Field & clinical application (Optical Express background)
+  'field application specialist',
+  'clinical product specialist',
+  'device specialist',
+  // Onboarding & training (Audi connectivity background)
+  'customer onboarding manager',
+  'training specialist',
+  // Keep some broad support as fallback
+  'customer success',
+  'technical support'
 ];
 
 // ── Job helpers ───────────────────────────────────────────────
