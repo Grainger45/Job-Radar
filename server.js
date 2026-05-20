@@ -103,11 +103,7 @@ No formal IT qualifications but strong practical tech aptitude.`;
 
 const PREFS = `Luke is looking for roles with good job satisfaction, clear progression, positive culture, and work-life balance. Tech-adjacent roles ideal but any well-regarded role with development opportunities is worth considering.
 
-TARGET ROLES (in order of fit): Customer Success Manager, Client Success Manager, Product Specialist, Brand Specialist, Technology Specialist, Digital Adoption Specialist, Implementation Specialist, Solutions Consultant, Field Application Specialist, Clinical Product Specialist, Customer Onboarding Manager, Training Specialist, Technical Sales Specialist.
-
-CAREER PATH IMPORTANCE: Luke wants roles with genuine career progression. Reward roles that mention clear progression paths, promotion from within, career development, growing companies, or leadership opportunities. Penalise roles that appear to be dead-end admin positions with no stated progression.
-
-SECTOR PREFERENCE: SaaS/tech companies, automotive manufacturers/dealers, medical/health tech, diagnostic equipment companies. These sectors offer the best progression for Luke's background.
+TARGET ROLES (priority order): 1) Customer Success Associate, Junior Customer Success, Customer Success Executive, Onboarding Specialist, Client Success Associate — IDEAL entry points into SaaS/tech, score highest. 2) Customer Success Manager, Client Success Manager, Digital Adoption Specialist, Implementation Specialist, Product Specialist, Brand Specialist, Technology Specialist — great career roles, score highly. 3) Technical Support, IT Support, Helpdesk — acceptable fallback. Pure IT engineering or call centre roles score lowest. Luke wants a career with progression — reward roles that mention growth, promotion, development, fast-growing company.
 
 LOCATION: Stoke-on-Trent within 10 miles OR fully remote UK. Min salary £24,000. Weekdays only.
 
@@ -158,26 +154,25 @@ function fetchUrl(url, options = {}) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const SEARCHES = [
-  // SaaS & tech customer success (best long-term career path)
+  // Entry-level SaaS & customer success (primary target)
+  'customer success associate',
+  'junior customer success',
+  'customer success executive',
+  'client success associate',
+  'onboarding specialist',
+  // CSM roles
   'customer success manager',
   'client success manager',
-  'digital adoption specialist',
-  'implementation specialist',
-  'solutions consultant',
-  // Product & brand specialist (direct match to Audi/Arnold Clark background)
+  // Product & brand specialist (Audi/Arnold Clark background)
   'product specialist',
   'brand specialist',
   'technology specialist',
-  'product demonstrator',
-  'technical sales specialist',
-  // Field & clinical application (Optical Express background)
-  'field application specialist',
-  'clinical product specialist',
-  'device specialist',
-  // Onboarding & training (Audi connectivity background)
-  'customer onboarding manager',
+  // Digital adoption & implementation
+  'digital adoption specialist',
+  'implementation specialist',
+  // Training
   'training specialist',
-  // Keep some broad support as fallback
+  // Broad fallback
   'customer success',
   'technical support'
 ];
@@ -264,7 +259,7 @@ async function scrapeAdzuna() {
 
     // Remote UK
     try {
-      const params = new URLSearchParams({ app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY, results_per_page: 50, what: `${q} remote`, salary_min: 24000, full_time: 1, permanent: 1 });
+      const params = new URLSearchParams({ app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY, results_per_page: 50, what: `${q} remote`, salary_min: 23000, full_time: 1, permanent: 1 });
       const parsed = JSON.parse(await fetchUrl(`https://api.adzuna.com/v1/api/jobs/gb/search/1?${params}`));
       for (const job of (parsed.results || [])) {
         const salMax = job.salary_max || job.salary_min || 0;
