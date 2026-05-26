@@ -67,9 +67,13 @@ const RECRUITMENT_AGENCIES = [
 const NON_STOKE_CITIES = [
   'london', 'manchester', 'birmingham', 'leeds', 'sheffield', 'liverpool',
   'bristol', 'crawley', 'brighton', 'sussex', 'southampton', 'portsmouth',
-  'reading', 'oxford', 'cambridge', 'edinburgh', 'glasgow', 'cardiff',
+  'reading', 'berkshire', 'oxford', 'cambridge', 'edinburgh', 'glasgow', 'cardiff',
   'belfast', 'northern ireland', 'seaford', 'gatwick', 'coventry', 'leicester',
-  'nottingham', 'derby', 'wolverhampton', 'telford', 'shrewsbury'
+  'nottingham', 'derby', 'wolverhampton', 'telford', 'shrewsbury',
+  'london', 'milton keynes', 'luton', 'watford', 'guildford', 'surrey',
+  'kent', 'essex', 'hertfordshire', 'buckinghamshire', 'oxfordshire',
+  'norwich', 'ipswich', 'exeter', 'plymouth', 'bristol', 'bath',
+  'swindon', 'gloucester', 'worcester', 'hereford', 'newport', 'swansea'
 ];
 
 const RED_FLAGS = [
